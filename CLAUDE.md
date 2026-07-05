@@ -15,35 +15,40 @@ users can search for belongings by typing any descriptive words. The app will sh
 ## Architecture & Design
 
 ### Core Principles
-- **No photos stored on our servers** — photos never leave the device to our backend; Gemini receives the image directly from the app
-- **No location permission required** — room/location is inferred by Gemini from the visual content of the photo (e.g. "garage shelf", "kitchen drawer")
+- **No photos stored on our servers** — photos are saved to an app-specific album on the device (`Pictures/Home Inventory` via Android MediaStore); Google Photos auto-syncs this album just like Pokémon GO snapshots
+- **Location set once per session, not per photo** — a persistent room selector on the camera screen; user picks "I'm in: Garage", takes as many photos as they want, all tagged automatically
 - **Zero effort after the shot** — user takes a photo, everything else is automatic
 
 ### High-Level Flow
 
 ```
-User opens app camera → takes photo
+User opens app → selects current room ("I'm in: Garage") once
+  → takes photo
+  → photo saved to "Home Inventory" album on device (Google Photos syncs it)
   → photo sent directly from device to Gemini API (never to our servers)
-  → Gemini returns: items identified + inferred room/location
-  → only TEXT results stored (labels, descriptions, location, photo reference ID)
-  → photo stays on device (device storage / Google Photos)
+  → Gemini returns: items identified in the photo
+  → TEXT results + room tag + device photo reference stored locally and synced to Firestore
   → user can search immediately
 ```
 
-### What We Store (Text Only)
+### What We Store
 
-We **never** store the photo. We only store the structured text data Gemini returns:
+| Stored                        | Not Stored              |
+|-------------------------------|-------------------------|
+| Item labels                   | Photo bytes on servers  |
+| Descriptions & tags           | Photo URL on servers    |
+| Room (from room selector)     |                         |
+| Device photo URI (reference)  |                         |
+| Timestamp                     |                         |
 
-| Stored         | Not Stored         |
-|----------------|--------------------|
-| Item labels    | Photo bytes/file   |
-| Descriptions   | Photo URL          |
-| Tags           | Any image data     |
-| Inferred room  |                    |
-| Device photo ID (reference only) | |
-| Timestamp      |                    |
+The device photo URI (`content://media/...`) lets the app display the photo from the user's own device in search results — it is never uploaded to our servers.
 
-The device photo ID is a local asset URI (e.g. Android `content://media/...`) so the app can display the photo from the user's own device when showing search results — it is never uploaded.
+### Photo Album Strategy
+
+- On capture, photo is written to `Pictures/Home Inventory/` via Android `MediaStore`
+- This creates a named album visible in Google Photos, Samsung Gallery, etc. — identical to how Pokémon GO stores AR snapshots
+- Google Photos auto-backup applies if the user has it enabled — we don't control or trigger it
+- If the user deletes a photo from the album, the app shows a placeholder in search results
 
 ---
 
@@ -68,19 +73,24 @@ The device photo ID is a local asset URI (e.g. Android `content://media/...`) so
 ### Data Model
 
 #### `InventoryItem`
-| Field        | Type   | Notes                                             |
-|--------------|--------|---------------------------------------------------|
-| id           | String | Local UUID                                        |
-| devicePhotoId| String | Local asset URI — used to display photo from device|
-| label        | String | Primary item name (e.g. "Black cordless drill")   |
-| category     | String | e.g. "Tools", "Electronics", "Documents"          |
-| description  | String | Gemini's natural-language description             |
-| inferredRoom | String | Room inferred by Gemini (e.g. "Garage", "Kitchen")|
-| tags         | List   | Additional search keywords                        |
-| timestamp    | Long   | When the photo was taken                          |
+| Field         | Type   | Notes                                              |
+|---------------|--------|----------------------------------------------------|
+| id            | String | Local UUID                                         |
+| devicePhotoUri| String | `content://media/...` URI — displays photo from device |
+| label         | String | Primary item name (e.g. "Black cordless drill")    |
+| category      | String | e.g. "Tools", "Electronics", "Documents"           |
+| description   | String | Gemini's natural-language description              |
+| room          | String | From room selector at time of capture              |
+| tags          | List   | Additional search keywords                         |
+| timestamp     | Long   | When the photo was taken                           |
 
-No `Photo` table — photos are never stored or managed by us.
-No `Location` table — location is inferred automatically, not user-managed.
+#### `Room`
+| Field | Type   | Notes                                    |
+|-------|--------|------------------------------------------|
+| id    | String | Local UUID                               |
+| name  | String | e.g. "Garage", "Kitchen", "Loft storage" |
+
+User manages their own room list. Pre-populated with common rooms on first launch.
 
 ---
 
@@ -88,37 +98,37 @@ No `Location` table — location is inferred automatically, not user-managed.
 
 - Model: `gemini-2.0-flash` (multimodal)
 - Photo is sent as compressed JPEG bytes **directly from the device to Gemini** — it does not pass through our servers
-- Single prompt asks Gemini to return items AND infer the room from visual context:
+- Room is already known from the room selector — Gemini only needs to identify items:
 
 **Prompt:**
 ```
 Look at this photo. Identify every distinct item visible.
-Also infer what room or storage area this appears to be based on the surroundings.
-Return a JSON object in this exact format:
-{
-  "inferredRoom": "Garage",
-  "items": [
-    {
-      "label": "Cordless drill",
-      "category": "Tools",
-      "description": "Black and yellow DeWalt cordless drill on a shelf",
-      "tags": ["drill", "power tool", "DeWalt", "yellow"]
-    }
-  ]
-}
+Return a JSON array in this exact format:
+[
+  {
+    "label": "Cordless drill",
+    "category": "Tools",
+    "description": "Black and yellow DeWalt cordless drill on a shelf",
+    "tags": ["drill", "power tool", "DeWalt", "yellow"]
+  }
+]
+Only return the JSON array, no other text.
 ```
 
-- If the user disagrees with the inferred room, they can correct it with one tap — but this is optional, not required
-- Gemini call is made via the Android SDK/Retrofit directly; image bytes are not logged or stored by our app
+- Gemini call is made via the Android SDK directly; image bytes are not logged or stored by our app
 
 ---
 
 ### Camera Flow
 
-- App has a built-in camera screen (CameraX)
-- After capture: photo is saved to device (Google Photos if user has backup enabled) and immediately sent to Gemini in the background
+- App has a built-in camera screen (CameraX) with a **room selector chip** at the top (e.g. "I'm in: Garage ▼")
+- User selects the room once; it persists until they change it — no per-photo prompting
+- After capture:
+  1. Photo saved to `Pictures/Home Inventory/` on device via MediaStore
+  2. Photo compressed and sent directly to Gemini in the background
+  3. Room tag from the selector is attached to the result
 - User sees a brief "Scanning..." indicator — can keep taking more photos without waiting
-- Results appear in the inventory list once Gemini responds (typically 2–5 seconds)
+- Results appear in the inventory once Gemini responds (typically 2–5 seconds)
 
 ---
 
@@ -133,11 +143,12 @@ Return a JSON object in this exact format:
 ### App Screens
 
 1. **Sign-In** — Google Sign-In
-2. **Camera** — default/home screen; tap to take a photo
-3. **Inventory** — grid of all items, filterable by category or inferred room
+2. **Camera** — default/home screen; room selector chip at top, tap shutter to capture
+3. **Inventory** — grid of all items, filterable by room or category
 4. **Search Results** — photo grid matching the query
-5. **Item Detail** — photo (from device) + item list; optional room correction
-6. **Settings** — account, clear local data
+5. **Item Detail** — photo (loaded from device) + item list; room shown, editable
+6. **Rooms** — manage room list (add, rename, delete)
+7. **Settings** — account, clear local data
 
 ---
 
