@@ -15,7 +15,7 @@ users can search for belongings by typing any descriptive words. The app will sh
 ## Architecture & Design
 
 ### Core Principles
-- **No photos stored on our servers** — photos are saved to an app-specific album on the device (`Pictures/Home Inventory` via Android MediaStore); Google Photos auto-syncs this album just like Pokémon GO snapshots
+- **No photos stored on our servers** — photos are saved to an app-specific album on the device (`Pictures/Home Inventory` via Android MediaStore); Google Photos auto-syncs this album automatically
 - **Location set once per session, not per photo** — a persistent room selector on the camera screen; user picks "I'm in: Garage", takes as many photos as they want, all tagged automatically
 - **Zero effort after the shot** — user takes a photo, everything else is automatic
 
@@ -46,7 +46,7 @@ The device photo URI (`content://media/...`) lets the app display the photo from
 ### Photo Album Strategy
 
 - On capture, photo is written to `Pictures/Home Inventory/` via Android `MediaStore`
-- This creates a named album visible in Google Photos, Samsung Gallery, etc. — identical to how Pokémon GO stores AR snapshots
+- This creates a named album visible in Google Photos, Samsung Gallery, etc.
 - Google Photos auto-backup applies if the user has it enabled — we don't control or trigger it
 - If the user deletes a photo from the album, the app shows a placeholder in search results
 
