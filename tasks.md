@@ -41,12 +41,12 @@
 - [ ] Rooms management screen: add, rename, delete rooms
 
 ## Phase 6 — Monetisation
-- [ ] Set up Google Play In-App Products (3 credit packs: 50/$0.99, 200/$2.99, 500/$5.99)
+- [ ] Set up Google Play In-App Products: 3 scan credit packs + 3 storage tier upgrades (Standard/Large/Unlimited)
 - [ ] Integrate Google Play Billing Library into the app
-- [ ] Store credit balance in Firestore per user UID; cache in Room for offline display
+- [ ] Store credit balance and storage tier in Firestore per user UID; cache in Room for offline display
 - [ ] On app launch: new users granted 20 free trial credits
 - [ ] Deduct 1 credit from Firestore before each Gemini scan call; refund on Gemini failure
-- [ ] Disable camera shutter when credit balance is 0; show "Buy more scans" prompt
+- [ ] Disable camera shutter when credit balance is 0 or item cap is reached; show appropriate upsell prompt
 - [ ] Show credit balance on camera screen and in Settings
 - [ ] Build "Buy Credits" screen with pack options and Play purchase flow
 - [ ] Verify purchases server-side via Firebase Cloud Function (prevent receipt fraud)

@@ -205,9 +205,22 @@ Search is always free. Users pay only for scans (Gemini image calls), which is w
 - When user hits 0 credits, the shutter button is disabled and a "Buy more scans" prompt appears — they can still search existing inventory freely
 - Google Play handles payment, receipts, and refunds; we store the credit balance in Firestore per user UID
 
+### Storage Tiers (one-time purchase)
+
+Separate from scan credits, users pay once to increase how many items they can hold in their inventory. This prevents abuse (e.g. scanning an entire warehouse on one credit pack and storing everything for free).
+
+| Tier | Item cap | Price |
+|------|----------|-------|
+| Free | 200 items | Free |
+| Standard | 2,000 items | one-time purchase |
+| Large | 10,000 items | one-time purchase |
+| Unlimited | No cap | one-time purchase |
+
+When a user hits their item cap, scanning is blocked until they upgrade or delete items.
+
 ### Why not subscription?
 
-Credit packs fit this app better than a monthly subscription — users scan their house once (or occasionally after moving/reorganising) and then mostly just search. A subscription would feel unfair when someone has already scanned everything they own and just wants to look things up.
+Credit packs and one-time storage upgrades fit this app better than a monthly subscription — users scan their house once (or occasionally after moving/reorganising) and then mostly just search. A subscription would feel unfair when someone has already scanned everything they own and just wants to look things up.
 
 ### Revenue Tracking
 
