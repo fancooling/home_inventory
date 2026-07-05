@@ -14,22 +14,38 @@ users can search for belongings by typing any descriptive words. The app will sh
 
 ## Architecture & Design
 
-### Platform
-- **Android** (Kotlin + Jetpack Compose)
-- **Google Photos** as the primary photo source (via Google Photos Library API)
-- **Gemini API** (gemini-2.0-flash) for AI-powered item recognition from photos
-- **Firebase** for authentication and cloud sync
+### Core Principles
+- **No photos stored on our servers** — photos never leave the device to our backend; Gemini receives the image directly from the app
+- **No location permission required** — room/location is inferred by Gemini from the visual content of the photo (e.g. "garage shelf", "kitchen drawer")
+- **Zero effort after the shot** — user takes a photo, everything else is automatic
 
 ### High-Level Flow
 
 ```
-User → Google Sign-In → Grant Google Photos access
-     → Select albums / photos to scan
-     → App sends photos to Gemini API
-     → Gemini returns structured item data (label, category, description)
-     → Items stored in local Room DB + synced to Firestore
-     → User searches by text → matching photos shown
+User opens app camera → takes photo
+  → photo sent directly from device to Gemini API (never to our servers)
+  → Gemini returns: items identified + inferred room/location
+  → only TEXT results stored (labels, descriptions, location, photo reference ID)
+  → photo stays on device (device storage / Google Photos)
+  → user can search immediately
 ```
+
+### What We Store (Text Only)
+
+We **never** store the photo. We only store the structured text data Gemini returns:
+
+| Stored         | Not Stored         |
+|----------------|--------------------|
+| Item labels    | Photo bytes/file   |
+| Descriptions   | Photo URL          |
+| Tags           | Any image data     |
+| Inferred room  |                    |
+| Device photo ID (reference only) | |
+| Timestamp      |                    |
+
+The device photo ID is a local asset URI (e.g. Android `content://media/...`) so the app can display the photo from the user's own device when showing search results — it is never uploaded.
+
+---
 
 ### Tech Stack
 
@@ -38,101 +54,90 @@ User → Google Sign-In → Grant Google Photos access
 | UI                 | Jetpack Compose                         |
 | Language           | Kotlin                                  |
 | Auth               | Firebase Auth (Google Sign-In)          |
-| Photo source       | Google Photos Library API               |
-| AI recognition     | Gemini API — gemini-2.0-flash           |
-| Local storage      | Room (SQLite)                           |
-| Cloud sync         | Firebase Firestore                      |
+| Camera             | CameraX                                 |
+| AI recognition     | Gemini API — gemini-2.0-flash (multimodal) |
+| Local storage      | Room (SQLite) — text data only          |
+| Cloud sync         | Firebase Firestore — text data only     |
 | Networking         | Retrofit + OkHttp                       |
-| Image loading      | Coil                                    |
+| Image display      | Coil (reads from device, not our server)|
 | DI                 | Hilt                                    |
-| Background work    | WorkManager (batch scanning)            |
+| Background work    | WorkManager                             |
 
 ---
 
 ### Data Model
 
-#### `Photo`
-| Field           | Type     | Notes                                |
-|-----------------|----------|--------------------------------------|
-| id              | String   | Local UUID                           |
-| googlePhotosId  | String   | ID from Google Photos API            |
-| baseUrl         | String   | Google Photos base URL               |
-| dateTaken       | Long     | Unix timestamp                       |
-| locationId      | String?  | FK → Location (user-tagged)          |
-| scanned         | Boolean  | Whether Gemini has processed it      |
-
 #### `InventoryItem`
-| Field       | Type    | Notes                                      |
-|-------------|---------|--------------------------------------------|
-| id          | String  | Local UUID                                 |
-| photoId     | String  | FK → Photo                                 |
-| label       | String  | Primary item name (e.g. "Black drill")     |
-| category    | String  | e.g. "Tools", "Electronics", "Documents"   |
-| description | String  | Gemini's natural-language description      |
-| confidence  | Float   | Gemini confidence score (0.0–1.0)          |
-| tags        | List    | Additional search keywords                 |
+| Field        | Type   | Notes                                             |
+|--------------|--------|---------------------------------------------------|
+| id           | String | Local UUID                                        |
+| devicePhotoId| String | Local asset URI — used to display photo from device|
+| label        | String | Primary item name (e.g. "Black cordless drill")   |
+| category     | String | e.g. "Tools", "Electronics", "Documents"          |
+| description  | String | Gemini's natural-language description             |
+| inferredRoom | String | Room inferred by Gemini (e.g. "Garage", "Kitchen")|
+| tags         | List   | Additional search keywords                        |
+| timestamp    | Long   | When the photo was taken                          |
 
-#### `Location`
-| Field | Type   | Notes                              |
-|-------|--------|------------------------------------|
-| id    | String | Local UUID                         |
-| name  | String | e.g. "Garage", "Kitchen drawer 2"  |
+No `Photo` table — photos are never stored or managed by us.
+No `Location` table — location is inferred automatically, not user-managed.
 
 ---
 
 ### Gemini Integration
 
-- Model: `gemini-2.0-flash` (multimodal, cost-effective)
-- Each photo is sent as inline image data (JPEG bytes) or via URI
-- Prompt instructs Gemini to return a JSON array of items found in the photo:
+- Model: `gemini-2.0-flash` (multimodal)
+- Photo is sent as compressed JPEG bytes **directly from the device to Gemini** — it does not pass through our servers
+- Single prompt asks Gemini to return items AND infer the room from visual context:
 
-```json
-[
-  {
-    "label": "Cordless drill",
-    "category": "Tools",
-    "description": "Black and yellow DeWalt cordless drill stored on shelf",
-    "tags": ["drill", "power tool", "DeWalt", "yellow"],
-    "confidence": 0.95
-  }
-]
+**Prompt:**
+```
+Look at this photo. Identify every distinct item visible.
+Also infer what room or storage area this appears to be based on the surroundings.
+Return a JSON object in this exact format:
+{
+  "inferredRoom": "Garage",
+  "items": [
+    {
+      "label": "Cordless drill",
+      "category": "Tools",
+      "description": "Black and yellow DeWalt cordless drill on a shelf",
+      "tags": ["drill", "power tool", "DeWalt", "yellow"]
+    }
+  ]
+}
 ```
 
-- Scanning runs as a WorkManager background job to handle large photo libraries
-- Rate limiting: batch photos with a delay to stay within Gemini API quotas
+- If the user disagrees with the inferred room, they can correct it with one tap — but this is optional, not required
+- Gemini call is made via the Android SDK/Retrofit directly; image bytes are not logged or stored by our app
 
 ---
 
-### Google Photos Integration
+### Camera Flow
 
-- OAuth 2.0 via Firebase Auth + Google Photos scope (`photoslibrary.readonly`)
-- Users can choose to scan:
-  - All photos in their library
-  - Specific albums (e.g. "Home items")
-  - Individual selected photos
-- Photos are never downloaded fully — Gemini receives the Google Photos base URL or resized thumbnail bytes
+- App has a built-in camera screen (CameraX)
+- After capture: photo is saved to device (Google Photos if user has backup enabled) and immediately sent to Gemini in the background
+- User sees a brief "Scanning..." indicator — can keep taking more photos without waiting
+- Results appear in the inventory list once Gemini responds (typically 2–5 seconds)
 
 ---
 
 ### Search
 
-- Full-text search (FTS5 in Room) over `label`, `description`, `tags`, `category`
-- Filter by `Location`
-- Results display as a photo grid with item labels overlaid
-- Tapping a result shows the full photo + all identified items in that photo
+- Full-text search (FTS5 in Room) over `label`, `description`, `tags`, `category`, `inferredRoom`
+- Results display as a photo grid — photos loaded from the device using `devicePhotoId`
+- Tapping a result shows the photo (from device) + all identified items
 
 ---
 
 ### App Screens
 
-1. **Sign-In** — Google Sign-In button
-2. **Home / Dashboard** — scan status, quick search bar, recent items
-3. **Scan** — select Google Photos albums or trigger full-library scan; progress indicator
-4. **Inventory** — scrollable grid of all scanned items, filterable by category/location
-5. **Search Results** — photo grid matching the query
-6. **Photo Detail** — full photo + list of Gemini-identified items, location tag editor
-7. **Locations** — manage named locations (rooms, storage areas)
-8. **Settings** — account, re-scan, clear data
+1. **Sign-In** — Google Sign-In
+2. **Camera** — default/home screen; tap to take a photo
+3. **Inventory** — grid of all items, filterable by category or inferred room
+4. **Search Results** — photo grid matching the query
+5. **Item Detail** — photo (from device) + item list; optional room correction
+6. **Settings** — account, clear local data
 
 ---
 
@@ -140,6 +145,6 @@ User → Google Sign-In → Grant Google Photos access
 
 - Min SDK: 26 (Android 8.0)
 - Target SDK: 35
-- Secrets (API keys) stored via `local.properties` + `BuildConfig`, never committed
+- Secrets stored via `local.properties` + `BuildConfig`, never committed
 - Required keys: `GEMINI_API_KEY`, Firebase `google-services.json`
 - Run `./gradlew test` for unit tests; `./gradlew connectedAndroidTest` for instrumented tests
