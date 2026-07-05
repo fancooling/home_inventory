@@ -40,11 +40,22 @@
 - [ ] Handle case where device photo has been deleted (show placeholder)
 - [ ] Rooms management screen: add, rename, delete rooms
 
-## Phase 6 — Polish & Release Prep
+## Phase 6 — Monetisation
+- [ ] Set up Google Play In-App Products (3 credit packs: 50/$0.99, 200/$2.99, 500/$5.99)
+- [ ] Integrate Google Play Billing Library into the app
+- [ ] Store credit balance in Firestore per user UID; cache in Room for offline display
+- [ ] On app launch: new users granted 20 free trial credits
+- [ ] Deduct 1 credit from Firestore before each Gemini scan call; refund on Gemini failure
+- [ ] Disable camera shutter when credit balance is 0; show "Buy more scans" prompt
+- [ ] Show credit balance on camera screen and in Settings
+- [ ] Build "Buy Credits" screen with pack options and Play purchase flow
+- [ ] Verify purchases server-side via Firebase Cloud Function (prevent receipt fraud)
+
+## Phase 7 — Polish & Release Prep
 - [ ] App icon and branding
-- [ ] Empty state on camera screen (first launch onboarding)
-- [ ] Error handling: camera permission denied, Gemini timeout, no network
-- [ ] Settings screen: account info, clear local inventory
+- [ ] Empty state on camera screen (first launch onboarding + free trial callout)
+- [ ] Error handling: camera permission denied, Gemini timeout, no network, payment failure
+- [ ] Settings screen: account info, credit balance, clear local inventory
 - [ ] Secrets audit: no API keys committed
 - [ ] ProGuard / R8 rules for release build
 - [ ] Write README with setup instructions

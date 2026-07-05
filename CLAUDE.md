@@ -177,12 +177,43 @@ User types "blakc dril"
 ### App Screens
 
 1. **Sign-In** — Google Sign-In
-2. **Camera** — default/home screen; room selector chip at top, tap shutter to capture
+2. **Camera** — default/home screen; room selector chip at top, tap shutter to capture; scan credit count shown
 3. **Inventory** — grid of all items, filterable by room or category
 4. **Search Results** — photo grid matching the query
 5. **Item Detail** — photo (loaded from device) + item list; room shown, editable
 6. **Rooms** — manage room list (add, rename, delete)
-7. **Settings** — account, clear local data
+7. **Buy Credits** — credit pack selection and Google Play purchase flow
+8. **Settings** — account, credit balance, clear local data
+
+---
+
+## Monetisation
+
+### Model — Scan Credit Packs (Google Play In-App Purchases)
+
+Search is always free. Users pay only for scans (Gemini image calls), which is where our cost actually is.
+
+| Tier | Scans | Price | Our cost | Margin |
+|------|-------|-------|----------|--------|
+| Free trial | 20 scans | Free | ~$0.01 | — |
+| Starter pack | 50 scans | $0.99 | ~$0.02 | ~98% |
+| Standard pack | 200 scans | $2.99 | ~$0.08 | ~97% |
+| Large pack | 500 scans | $5.99 | ~$0.20 | ~97% |
+
+- Credits never expire
+- Balance shown on the camera screen and in Settings
+- When user hits 0 credits, the shutter button is disabled and a "Buy more scans" prompt appears — they can still search existing inventory freely
+- Google Play handles payment, receipts, and refunds; we store the credit balance in Firestore per user UID
+
+### Why not subscription?
+
+Credit packs fit this app better than a monthly subscription — users scan their house once (or occasionally after moving/reorganising) and then mostly just search. A subscription would feel unfair when someone has already scanned everything they own and just wants to look things up.
+
+### Revenue Tracking
+
+- Each scan deducts 1 credit from Firestore before the Gemini call is made
+- If the Gemini call fails, the credit is refunded
+- Credit balance is the source of truth in Firestore; local cache in Room for offline display only
 
 ---
 
