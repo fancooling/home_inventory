@@ -24,16 +24,17 @@
 - [ ] Handle Gemini errors gracefully (retry once, then surface to user)
 
 ## Phase 4 — Local Storage & Cloud Sync
-- [ ] Define Room schema: `InventoryItem` + `Room` tables
+- [ ] Define Room schema: `Photo` table (UUID + devicePhotoUri + room + timestamp), `InventoryItem` table (UUID + photoId FK + labels), `Room` table
+- [ ] On capture: create `Photo` record with UUID before sending to Gemini; use that UUID as the link for all items returned
 - [ ] Pre-populate `Room` table with common rooms on first launch (Kitchen, Garage, Bedroom, etc.)
-- [ ] Implement FTS5 virtual table for full-text search over label/description/tags/category/room
-- [ ] Implement Firestore sync (text data only — item records per user UID, no photos)
-- [ ] Offline-first: write to Room immediately; sync to Firestore in background via WorkManager
+- [ ] Implement FTS5 virtual table for full-text search over label/description/tags/category
+- [ ] Implement Firestore sync (text data only — `Photo` references + `InventoryItem` records per user UID, no image bytes)
+- [ ] Offline-first: write to Room DB immediately; sync to Firestore in background via WorkManager
 
 ## Phase 5 — Search & Inventory UI
 - [ ] Inventory screen: photo grid loaded from device using `devicePhotoUri`, filterable by room/category
-- [ ] Search screen: FTS5 query, results shown as photo grid
-- [ ] Item detail screen: photo (from device) + item list + editable room field
+- [ ] Search screen: FTS5 query on `InventoryItem` → join to `Photo` via `photoId` → load image from `devicePhotoUri`
+- [ ] Item detail screen: photo (loaded from device via `devicePhotoUri`) + all items linked to that photo + editable room field
 - [ ] Handle case where device photo has been deleted (show placeholder)
 - [ ] Rooms management screen: add, rename, delete rooms
 

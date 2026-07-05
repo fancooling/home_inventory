@@ -72,23 +72,35 @@ The device photo URI (`content://media/...`) lets the app display the photo from
 
 ### Data Model
 
+#### `Photo`
+| Field         | Type   | Notes                                                   |
+|---------------|--------|---------------------------------------------------------|
+| id            | String | UUID — the link code shared by all items in this photo  |
+| devicePhotoUri| String | `content://media/...` — used to load photo from device  |
+| room          | String | Room selected at time of capture                        |
+| timestamp     | Long   | When photo was taken                                    |
+
 #### `InventoryItem`
-| Field         | Type   | Notes                                              |
-|---------------|--------|----------------------------------------------------|
-| id            | String | Local UUID                                         |
-| devicePhotoUri| String | `content://media/...` URI — displays photo from device |
-| label         | String | Primary item name (e.g. "Black cordless drill")    |
-| category      | String | e.g. "Tools", "Electronics", "Documents"           |
-| description   | String | Gemini's natural-language description              |
-| room          | String | From room selector at time of capture              |
-| tags          | List   | Additional search keywords                         |
-| timestamp     | Long   | When the photo was taken                           |
+| Field       | Type   | Notes                                           |
+|-------------|--------|-------------------------------------------------|
+| id          | String | UUID                                            |
+| photoId     | String | FK → Photo.id — the link back to the photo      |
+| label       | String | Primary item name (e.g. "Black cordless drill") |
+| category    | String | e.g. "Tools", "Electronics", "Documents"        |
+| description | String | Gemini's natural-language description           |
+| tags        | List   | Additional search keywords                      |
 
 #### `Room`
 | Field | Type   | Notes                                    |
 |-------|--------|------------------------------------------|
-| id    | String | Local UUID                               |
+| id    | String | UUID                                     |
 | name  | String | e.g. "Garage", "Kitchen", "Loft storage" |
+
+**How the link works:**
+1. Photo taken → saved to device → `Photo` record created with a UUID and the device URI
+2. Gemini returns 3 items from that photo → 3 `InventoryItem` records created, all with the same `photoId`
+3. User searches "drill" → `InventoryItem` found → `photoId` looked up → `Photo.devicePhotoUri` used to load the image from the device
+4. No photo bytes, no image URLs in our database — just the UUID link
 
 User manages their own room list. Pre-populated with common rooms on first launch.
 
