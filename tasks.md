@@ -18,7 +18,7 @@
 - [ ] Add Gemini Android SDK dependency
 - [ ] Compress photo to JPEG before sending to Gemini (reduce cost/latency)
 - [ ] Send photo bytes directly from device to Gemini (`gemini-2.0-flash`)
-- [ ] Design and test item-extraction prompt (returns JSON array of items)
+- [ ] Design and test item-extraction prompt — must return rich tags (color, brand, material, size, shape) not just item name
 - [ ] Parse Gemini response into `InventoryItem` Room entities, attaching room from selector
 - [ ] Show "Scanning..." indicator on camera screen; allow more photos to be taken while scanning
 - [ ] Handle Gemini errors gracefully (retry once, then surface to user)
@@ -33,7 +33,9 @@
 
 ## Phase 5 — Search & Inventory UI
 - [ ] Inventory screen: photo grid loaded from device using `devicePhotoUri`, filterable by room/category
-- [ ] Search screen: FTS5 query on `InventoryItem` → join to `Photo` via `photoId` → load image from `devicePhotoUri`
+- [ ] Search screen: raw query → Gemini preprocessing (spelling fix + synonym expansion) → FTS5 OR match → join `Photo` via `photoId` → load image from `devicePhotoUri`
+- [ ] Implement offline fallback: skip Gemini preprocessing, run raw query through FTS5 directly
+- [ ] Rank search results by FTS5 relevance score (bm25)
 - [ ] Item detail screen: photo (loaded from device via `devicePhotoUri`) + all items linked to that photo + editable room field
 - [ ] Handle case where device photo has been deleted (show placeholder)
 - [ ] Rooms management screen: add, rename, delete rooms

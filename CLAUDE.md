@@ -146,9 +146,31 @@ Only return the JSON array, no other text.
 
 ### Search
 
-- Full-text search (FTS5 in Room) over `label`, `description`, `tags`, `category`, `inferredRoom`
-- Results display as a photo grid — photos loaded from the device using `devicePhotoId`
-- Tapping a result shows the photo (from device) + all identified items
+Search uses Gemini at both ends to bridge vocabulary gaps and handle typos.
+
+**At scan time — rich tagging**
+The Gemini prompt explicitly asks for every descriptor as separate tags: color, material, brand, size, shape. A drill becomes `tags: ["drill", "black", "DeWalt", "cordless", "power tool", "battery", "yellow handle"]`. This means partial queries like "black drill" match on multiple independent tokens.
+
+**At search time — query preprocessing**
+Before hitting the database, the user's raw query is sent to `gemini-2.0-flash` with a lightweight prompt:
+```
+Fix any spelling errors and expand this search query with synonyms.
+Return a flat list of search terms, nothing else.
+Input: "blakc dril"
+Output: ["black", "drill", "cordless drill", "power tool", "DeWalt"]
+```
+The expanded term list is then run through FTS5 with OR matching, ranked by how many terms matched.
+
+**Full search flow:**
+```
+User types "blakc dril"
+  → Gemini preprocesses → ["black", "drill", "cordless drill", "power tool"]
+  → FTS5: SELECT * FROM items_fts WHERE items_fts MATCH 'black OR drill OR "cordless drill" OR "power tool"'
+  → JOIN Photo on photoId → load image from devicePhotoUri
+  → Show results ranked by relevance score
+```
+
+**Fallback:** if the device is offline, skip Gemini preprocessing and run the raw query directly through FTS5 — partial matches still work, just without spelling correction.
 
 ---
 
