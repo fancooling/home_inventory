@@ -222,11 +222,29 @@ When a user hits their item cap, scanning is blocked until they upgrade or delet
 
 Credit packs and one-time storage upgrades fit this app better than a monthly subscription — users scan their house once (or occasionally after moving/reorganising) and then mostly just search. A subscription would feel unfair when someone has already scanned everything they own and just wants to look things up.
 
-### Revenue Tracking
+### Security — Preventing Credit Fraud
 
-- Each scan deducts 1 credit from Firestore before the Gemini call is made
-- If the Gemini call fails, the credit is refunded
-- Credit balance is the source of truth in Firestore; local cache in Room for offline display only
+Clients (the Android app) can **never write directly to credit balance, storage tier, or item count**. Those fields are locked to Cloud Functions only via the Firebase Admin SDK, which bypasses Firestore security rules. A malicious user modifying app traffic or reverse-engineering the app cannot give themselves credits.
+
+**Firestore Security Rules structure:**
+```
+/users/{uid}/profile      → READ: owner only | WRITE: false (Cloud Functions only)
+/users/{uid}/items        → READ + WRITE: owner only
+/users/{uid}/photos       → READ + WRITE: owner only
+/users/{uid}/rooms        → READ + WRITE: owner only
+```
+
+**Scan flow with server enforcement:**
+1. App calls Cloud Function `reserveCredit` — CF checks balance, deducts 1, returns a one-time scan token
+2. App sends photo directly to Gemini (photo never touches our servers)
+3. App calls Cloud Function `commitScan` with the scan token + Gemini results — CF validates token, writes items to Firestore, increments item count
+4. If Gemini fails: app calls Cloud Function `refundCredit` to restore the deducted credit
+
+**Purchase verification:**
+- Google Play purchase token is sent to Cloud Function `verifyPurchase`
+- CF verifies token against Google Play Developer API
+- If valid: CF adds credits or upgrades storage tier, marks purchase consumed
+- Client never touches credit balance directly at any point
 
 ---
 

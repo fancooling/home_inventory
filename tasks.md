@@ -45,11 +45,15 @@
 - [ ] Integrate Google Play Billing Library into the app
 - [ ] Store credit balance and storage tier in Firestore per user UID; cache in Room for offline display
 - [ ] On app launch: new users granted 20 free trial credits
-- [ ] Deduct 1 credit from Firestore before each Gemini scan call; refund on Gemini failure
+- [ ] Write Firestore Security Rules: profile doc (credits/storageTier/itemCount) is client read-only; items/photos/rooms are owner read-write
+- [ ] Cloud Function `reserveCredit`: check balance, deduct 1, return one-time scan token
+- [ ] Cloud Function `commitScan`: validate scan token, write Gemini results to Firestore, increment item count
+- [ ] Cloud Function `refundCredit`: restore 1 credit if Gemini call failed
+- [ ] Cloud Function `verifyPurchase`: verify Google Play token via Play Developer API, add credits or upgrade storage tier
+- [ ] App calls `reserveCredit` before Gemini, `commitScan` after, `refundCredit` on failure — never writes credits directly
 - [ ] Disable camera shutter when credit balance is 0 or item cap is reached; show appropriate upsell prompt
 - [ ] Show credit balance on camera screen and in Settings
 - [ ] Build "Buy Credits" screen with pack options and Play purchase flow
-- [ ] Verify purchases server-side via Firebase Cloud Function (prevent receipt fraud)
 
 ## Phase 7 — Polish & Release Prep
 - [ ] App icon and branding
