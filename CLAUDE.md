@@ -24,7 +24,8 @@ ships inside the app. The relay retains nothing.
 - **No in-app camera** — the phone's native camera app is the only way photos get taken; home_inventory only reads what's already in the camera roll
 - **Local data, stateless cloud relay only for Gemini calls** — no Firestore, no user accounts, no server-side storage of any kind. All inventory data (items, rooms, credits) lives in a local SQLite (Room) database on the device. The one thing that leaves the device is the specific, pre-filtered photo sent through a **stateless Firebase relay** to reach Gemini — this exists solely so the Gemini API key never ships inside the APK (see Gemini Integration below). The relay does not log, cache, or persist the image or the response
 - **Scheduled background scanning** — a background job runs every N hours (user-configurable), finds new native-camera photos since the last scan, and processes them automatically. A manual "Scan now" action is also available
-- **On-device pre-filter before Gemini** — a small on-device ML model screens out photos that are clearly not home objects (selfies, people, pets, outdoor scenery) before spending a Gemini call on them, since Gemini calls are the app's real cost
+- **No photo containing a person ever reaches Gemini** — an on-device hard filter blocks any photo with a detected face or body part, unconditionally, before anything else runs. This is a security/privacy boundary, not a cost optimization
+- **On-device pre-filter before Gemini** — beyond the person exclusion above, a small on-device ML model also screens out photos unlikely to contain a home object (pets, outdoor scenery) before spending a Gemini call on them, since Gemini calls are the app's real cost
 - **Optional, not mandatory, room tagging** — once an item is detected, the user can optionally tag which room it's in; nothing blocks on this
 
 ### High-Level Flow
@@ -33,8 +34,9 @@ ships inside the app. The relay retains nothing.
 User takes photos normally, with their phone's native camera app (no interaction with home_inventory)
   → background job wakes up every N hours (or user taps "Scan now")
   → job queries MediaStore for new camera photos since the last scan checkpoint
-  → each new photo runs through an on-device pre-filter model
-      → clearly not a home object (person/pet/scenery), high confidence → skip, no Gemini call
+  → each new photo runs through the on-device pre-filter
+      → contains any part of a person (face or body), any confidence → hard block, no Gemini call, no exceptions
+      → no person, but also clearly not a home object (pet/scenery), high confidence → skip, no Gemini call
       → otherwise → sent through the stateless Firebase relay to Gemini for item identification
         (the relay only proxies the request/response; it retains nothing)
   → Gemini returns: items identified in the photo
@@ -90,7 +92,7 @@ apply here. The correct approach on Android:
 | Auth                  | None — no user accounts, no sign-in                                |
 | Photo source          | Native camera app + `MediaStore` query — no in-app camera          |
 | Background scanning   | WorkManager periodic worker (default every 6h, user-configurable) + on-demand "Scan now" |
-| On-device pre-filter  | ML Kit Object Detection & Tracking (coarse classifier) + ML Kit Face Detection — see On-Device Pre-Filter below |
+| On-device pre-filter  | ML Kit Face Detection + Pose Detection (hard person exclusion) + Object Detection & Tracking coarse classifier (cost filter) — see On-Device Pre-Filter below |
 | Gemini relay          | Firebase AI Logic — stateless proxy so the Gemini API key never ships in the client |
 | Anti-abuse            | Firebase App Check (Play Integrity) — attests the calling app is a genuine install; no user account required |
 | AI recognition        | Gemini API — `gemini-2.0-flash` (multimodal), via the relay, only for photos that pass the pre-filter |
@@ -203,26 +205,48 @@ this needs explicit handling, not just a manifest entry.
 
 ### On-Device Pre-Filter
 
-Two on-device, offline ML Kit APIs combine to screen out photos before they cost a Gemini call —
-chosen over generic Image Labeling because ML Kit's Object Detection & Tracking API ships a
-**coarse classifier built for exactly this**: it buckets detected objects into `home goods`,
-`fashion goods`, `food`, `plants`, or `places`.
+Two independent filters run before a photo can be sent to Gemini: a **hard privacy/security
+exclusion** for anything containing a person, and a **cost filter** that only bothers with
+photos likely to contain a home object. The exclusion filter always runs first and its "block"
+decision is final — it overrides the cost filter even if a home object is also present in the
+frame.
 
-- **ML Kit Object Detection & Tracking** (single-image mode, coarse classification enabled) runs
-  first. If it finds at least one object classified as `home goods` (or `fashion goods` — worth
-  keeping, since clothing/accessories are legitimate inventory items) above a confidence
+#### Body-Part Exclusion (hard filter — security, not cost)
+
+No photo containing any part of a human body is ever sent to Gemini, full stop:
+
+- **ML Kit Face Detection** — if it detects **any** face, at **any** size, above a low,
+  deliberately loose confidence threshold, the photo is blocked — a small, partial, or
+  background face is enough to trigger it, not just a dominant portrait/selfie
+- **ML Kit Pose Detection** — catches body parts where no face is visible at all (a hand, arm,
+  back, torso, legs) by detecting human body landmarks. Any pose result with a reasonable number
+  of landmarks above a low confidence threshold blocks the photo
+- **This inverts the usual "when in doubt, send it" bias.** Everywhere else in this filter, a
+  missed item costs more than a wasted scan credit, so ambiguity favors sending. Here it's the
+  opposite: **when in doubt, block it.** A photo that might contain a person is treated as if it
+  does. The cost of occasionally skipping a photo that only had, say, a mannequin or a photo on
+  a wall is acceptable; the cost of ever sending a photo with a person in it to a third-party AI
+  service is not
+- **Trade-off, stated explicitly:** a photo of someone holding or wearing the item they want
+  inventoried will never reach Gemini, even though the item itself is in frame. The item won't
+  be picked up until it appears in a photo without a person in it. This is intentional — the
+  exclusion is unconditional, not "person detected but item still counts"
+
+#### Object Classification (cost filter — only runs if the exclusion filter passed)
+
+- **ML Kit Object Detection & Tracking** (single-image mode, coarse classification enabled) —
+  chosen over generic Image Labeling because it ships a classifier built for exactly this: it
+  buckets detected objects into `home goods`, `fashion goods`, `food`, `plants`, or `places`. If
+  it finds at least one object classified as `home goods` or `fashion goods` above a confidence
   threshold, the photo goes to Gemini
-- **ML Kit Face Detection** runs as a secondary signal: if a single face fills a large fraction
-  of the frame (a portrait/selfie heuristic) and Object Detection found nothing in the accepted
-  categories, the photo is treated as a portrait and skipped
-- The filter only **skips** Gemini when it's **highly confident** the photo is a selfie/portrait
-  or contains no objects in the accepted categories at all (e.g. a pure landscape/food/plant
-  shot). Small on-device models aren't very accurate, so this stays conservative on purpose —
-  false negatives here (skipping something we shouldn't) cost the user a missing item; false
-  positives (sending something we shouldn't have) just cost a wasted scan credit. When in doubt,
-  send it
-- This reduces the number of paid Gemini calls without a meaningful accuracy trade-off, and both
-  APIs run fully offline with no model download required at first launch (bundled, mobile-optimized)
+- The filter only **skips** Gemini here when it's **highly confident** the photo contains no
+  objects in the accepted categories at all (e.g. a pure landscape/food/plant shot with no
+  person in it either). Small on-device models aren't very accurate, so — for this filter only —
+  ambiguity favors sending: a missed item costs the user more than a wasted scan credit
+- This reduces the number of paid Gemini calls without a meaningful accuracy trade-off
+
+All three models (Face Detection, Pose Detection, Object Detection & Tracking) run fully
+offline, bundled with the app, with no model download required at first launch.
 
 ---
 
