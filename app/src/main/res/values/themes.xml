@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Base theme applied before Compose takes over. Uses a Material3 DayNight parent with no
+      action bar, since all UI is drawn by Jetpack Compose.
+    -->
+    <style name="Theme.HomeInventory" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

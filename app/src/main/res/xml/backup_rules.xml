@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy backup rules (API 26–30), referenced by android:fullBackupContent.
+  android:allowBackup is false, so this never runs; the explicit excludes make the intent
+  unambiguous and keep the "stays on this device" guarantee even if backup is later enabled.
+-->
+<full-backup-content>
+    <exclude domain="root" />
+    <exclude domain="file" />
+    <exclude domain="database" />
+    <exclude domain="sharedpref" />
+    <exclude domain="external" />
+</full-backup-content>

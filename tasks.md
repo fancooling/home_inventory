@@ -1,12 +1,15 @@
 # Tasks
 
 ## Phase 1 — Project Scaffold
-- [ ] Initialize Android project (Kotlin, Jetpack Compose, min SDK 26, target SDK 35)
-- [ ] Add Hilt for dependency injection
-- [ ] Basic navigation graph (Inventory as home screen — no sign-in step)
+- [x] Initialize Android project (Kotlin, Jetpack Compose, min SDK 26, target SDK 35)
+- [x] Add Hilt for dependency injection
+- [x] Basic navigation graph (Inventory as home screen — no sign-in step)
 - [ ] Add a Firebase project (`google-services.json`) — needed only for Firebase AI Logic + App Check, no Firestore, no Auth
+  - _Code wiring scaffolded (git-ignored `google-services.json`, `.example` template, README setup steps, google-services plugin applied only when the file is present). Creating the actual Firebase project requires the Firebase console._
 - [ ] Enable Firebase AI Logic and configure it for `gemini-2.0-flash`
+  - _Code side done: Hilt provider (`di/FirebaseModule.kt`) supplies a `GenerativeModel` configured for `gemini-2.0-flash` via Firebase AI Logic. Enabling AI Logic on the project is a console step._
 - [ ] Enable Firebase App Check with the Play Integrity provider
+  - _Code side done: Play Integrity provider installed at startup (`HomeInventoryApp.kt`). Registering the app in App Check is a console step._
 
 ## Phase 2 — Background Photo Scanning & Permissions
 - [ ] Add WorkManager dependency; implement a `PeriodicWorkRequest` worker (default every 6h, interval configurable in Settings)

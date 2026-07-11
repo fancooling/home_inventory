@@ -1,0 +1,30 @@
+{
+  "_comment": "TEMPLATE ONLY. Copy to app/google-services.json with real values from the Firebase console. The real file is git-ignored and must never be committed (see CLAUDE.md → Build & Development Notes).",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "home-inventory-REPLACE_ME",
+    "storage_bucket": "home-inventory-REPLACE_ME.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "com.homeinventory.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

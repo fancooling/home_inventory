@@ -1,0 +1,22 @@
+# Firebase — identifies our project; must never be committed (see CLAUDE.md → Build Notes).
+google-services.json
+app/google-services.json
+
+# Gradle
+.gradle/
+build/
+app/build/
+captures/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+local.properties
+
+# OS
+.DS_Store
+
+# Keystores / signing
+*.jks
+*.keystore
+keystore.properties
