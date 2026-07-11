@@ -4,6 +4,7 @@ app/google-services.json
 
 # Gradle
 .gradle/
+.kotlin/
 build/
 app/build/
 captures/
