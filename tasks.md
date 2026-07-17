@@ -12,17 +12,25 @@
   - _Code side done: Play Integrity provider installed at startup (`HomeInventoryApp.kt`). Registering the app in App Check is a console step._
 
 ## Phase 2 — Background Photo Scanning & Permissions
-- [ ] Add WorkManager dependency; implement a `PeriodicWorkRequest` worker (default every 6h, interval configurable in Settings)
-- [ ] Worker queries `MediaStore.Images` for photos in `DCIM/Camera` with `DATE_ADDED` after `ScanCheckpoint.lastScanTimestamp`
-- [ ] Implement `ScanCheckpoint` table (Room) and update it after each successful scan pass
-- [ ] Add a "Scan now" action (Inventory + Settings) that triggers a `OneTimeWorkRequest` immediately
-- [ ] Request `READ_MEDIA_IMAGES` (API 33+) / `READ_EXTERNAL_STORAGE` (API <33); show an in-app rationale screen explaining why, before triggering the OS permission dialog
-- [ ] Detect and handle Android 14+ partial access (`READ_MEDIA_VISUAL_USER_SELECTED`): show an explainer + shortcut to Android's "Manage access" flow instead of silently under-scanning
-- [ ] Add ML Kit Object Detection & Tracking (coarse classification enabled) and ML Kit Face Detection dependencies
-- [ ] Implement the on-device pre-filter: send to Gemini if Object Detection finds a `home goods`/`fashion goods` classification above threshold; skip only when Face Detection finds a dominant face and no accepted category was found; default to "send it" when ambiguous
+- [x] Add WorkManager dependency; implement a `PeriodicWorkRequest` worker (default every 6h, interval configurable in Settings)
+  - _`PhotoScanWorker` (@HiltWorker) + `ScanScheduler` (periodic KEEP + one-time). Interval plumbing (`reschedulePeriodicScan`) is in place; the Settings UI to change it lands in Phase 7._
+- [x] Worker queries `MediaStore.Images` for photos in `DCIM/Camera` with `DATE_ADDED` after `ScanCheckpoint.lastScanTimestamp`
+- [x] Implement `ScanCheckpoint` table (Room) and update it after each successful scan pass
+  - _Room DB with `ScanCheckpoint`; checkpoint advanced per-photo so a stopped pass resumes cleanly._
+- [x] Add a "Scan now" action (Inventory + Settings) that triggers a `OneTimeWorkRequest` immediately
+  - _Wired on Inventory. The Settings screen is still a Phase 1 placeholder; its "Scan now" lands with the Settings UI (Phase 7)._
+- [x] Request `READ_MEDIA_IMAGES` (API 33+) / `READ_EXTERNAL_STORAGE` (API <33); show an in-app rationale screen explaining why, before triggering the OS permission dialog
+- [x] Detect and handle Android 14+ partial access (`READ_MEDIA_VISUAL_USER_SELECTED`): show an explainer + shortcut to Android's "Manage access" flow instead of silently under-scanning
+- [x] Add ML Kit Object Detection & Tracking (coarse classification enabled) and ML Kit Face Detection dependencies
+  - _Also added Pose Detection for the faceless-body case, per the design's person exclusion._
+- [x] Implement the on-device pre-filter: send to Gemini if Object Detection finds a `home goods`/`fashion goods` classification above threshold; skip only when Face Detection finds a dominant face and no accepted category was found; default to "send it" when ambiguous
+  - _`PhotoPreFilter`: face+pose hard person block, then object cost filter with the "when in doubt, send" bias. Verified on-device (11/11 real camera photos → ready). Unit-tested decision logic._
 - [ ] On item detection: copy the source photo into app-private external storage (`getExternalFilesDir(DIRECTORY_PICTURES)`); never write to a shared MediaStore album
-- [ ] Exclude the app-private photo directory from Android Auto Backup (`android:allowBackup` / `dataExtractionRules`)
-- [ ] Show a notification when a scan finds new items, linking to the Review New Items screen
+  - _Deferred to Phase 3 — "item detection" requires the Gemini result. The pipeline currently stops at "ready for identification"._
+- [x] Exclude the app-private photo directory from Android Auto Backup (`android:allowBackup` / `dataExtractionRules`)
+  - _Done in Phase 1 (`allowBackup=false` + data-extraction/backup rules)._
+- [~] Show a notification when a scan finds new items, linking to the Review New Items screen
+  - _Scan-complete notification implemented (`ScanNotifier`). The "N new items" text + deep link to Review New Items depends on Gemini results — completed in Phase 3._
 
 ## Phase 3 — Gemini Integration (via Firebase Relay)
 - [ ] Add Firebase AI Logic Android SDK dependency (no raw Gemini API key anywhere in the client)

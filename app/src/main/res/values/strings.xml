@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Home Inventory</string>
+
+    <!-- Scan notification -->
+    <string name="scan_channel_name">Photo scans</string>
+    <string name="scan_channel_description">Notifies you when a background scan finishes.</string>
+    <string name="scan_complete_title">Scan complete</string>
+    <string name="scan_complete_ready">%1$d photo(s) ready for identification</string>
+    <string name="scan_complete_none">Scanned %1$d photo(s); no new items to identify</string>
+
+    <!-- Photo permission rationale -->
+    <string name="perm_title">Allow access to your photos</string>
+    <string name="perm_rationale">Home Inventory scans the photos you take with your camera to
+        build a searchable index of your belongings. Photos are processed on your device; only
+        photos of objects (never people) are sent for identification. We never move or delete your
+        originals.</string>
+    <string name="perm_grant">Allow access</string>
+    <string name="perm_partial_title">Limited photo access</string>
+    <string name="perm_partial_rationale">You\'ve granted access to only some photos, so new
+        camera photos won\'t be scanned automatically. For full background scanning, allow access
+        to all photos.</string>
+    <string name="perm_manage">Manage access</string>
+    <string name="perm_continue">Continue</string>
 </resources>

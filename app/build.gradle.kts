@@ -33,6 +33,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Debug is a universal APK; ML Kit ships native libs for every ABI, which balloons
+            // the local dev-loop APK. Restrict to arm64-v8a (modern phones incl. the test Pixel).
+            // Release is unaffected — Phase 7 ships an App Bundle that splits per-device.
+            ndk { abiFilters += "arm64-v8a" }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -66,6 +72,7 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -80,6 +87,24 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
+
+    // Background scanning (WorkManager)
+    implementation(libs.androidx.work.runtime)
+
+    // Local storage (Room)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // Image loading
+    implementation(libs.coil.compose)
+
+    // On-device ML Kit pre-filter — all local, no network (see CLAUDE.md → On-Device Pre-Filter)
+    implementation(libs.mlkit.face.detection)
+    implementation(libs.mlkit.pose.detection)
+    implementation(libs.mlkit.objects.detection)
 
     // Firebase — AI Logic (Gemini relay) + App Check (Play Integrity).
     // No raw Gemini API key ships in the client; see CLAUDE.md → Gemini Integration.
