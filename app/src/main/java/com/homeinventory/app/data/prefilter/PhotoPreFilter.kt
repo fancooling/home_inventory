@@ -16,7 +16,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Runs the two-stage on-device pre-filter (all local, no network) that decides whether a photo
@@ -28,14 +27,15 @@ import javax.inject.Singleton
  *  2. **Object cost filter.** Only if no person was found: skip only when highly confident there
  *     is no home/fashion object. When in doubt here, send.
  *
- * Detectors are created once and reused; they are closed via [close].
+ * Not a singleton: instantiated per scan pass and torn down via [close] in the worker's `finally`,
+ * so the heavy native ML Kit models aren't held in memory between infrequent scans. Detectors are
+ * lazily created so an empty/aborted pass never loads a model it won't use.
  */
-@Singleton
 class PhotoPreFilter @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
-    private val faceDetector by lazy {
+    private val faceDetectorLazy = lazy {
         FaceDetection.getClient(
             FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
@@ -44,16 +44,18 @@ class PhotoPreFilter @Inject constructor(
                 .build(),
         )
     }
+    private val faceDetector get() = faceDetectorLazy.value
 
-    private val poseDetector by lazy {
+    private val poseDetectorLazy = lazy {
         PoseDetection.getClient(
             PoseDetectorOptions.Builder()
                 .setDetectorMode(PoseDetectorOptions.SINGLE_IMAGE_MODE)
                 .build(),
         )
     }
+    private val poseDetector get() = poseDetectorLazy.value
 
-    private val objectDetector by lazy {
+    private val objectDetectorLazy = lazy {
         ObjectDetection.getClient(
             ObjectDetectorOptions.Builder()
                 .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
@@ -62,6 +64,7 @@ class PhotoPreFilter @Inject constructor(
                 .build(),
         )
     }
+    private val objectDetector get() = objectDetectorLazy.value
 
     /**
      * Classifies [uri]. Runs on [Dispatchers.Default]; ML Kit tasks are awaited synchronously.
@@ -132,10 +135,11 @@ class PhotoPreFilter @Inject constructor(
         }
     }
 
+    /** Releases only the native detectors that were actually initialized during this pass. */
     fun close() {
-        faceDetector.close()
-        poseDetector.close()
-        objectDetector.close()
+        if (faceDetectorLazy.isInitialized()) faceDetector.close()
+        if (poseDetectorLazy.isInitialized()) poseDetector.close()
+        if (objectDetectorLazy.isInitialized()) objectDetector.close()
     }
 
     companion object {
