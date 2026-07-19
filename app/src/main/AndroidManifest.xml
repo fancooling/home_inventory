@@ -2,6 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      Broad photo access is the app's core feature (background scan of the camera roll). See
+      CLAUDE.md → Permissions & Play Store Compliance. On API 33+ we use READ_MEDIA_IMAGES;
+      READ_MEDIA_VISUAL_USER_SELECTED covers Android 14+ partial ("selected photos") access.
+      READ_EXTERNAL_STORAGE is the pre-33 equivalent, capped so newer devices don't request it.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Scan-complete notification (runtime-requested on API 33+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".HomeInventoryApp"
         android:allowBackup="false"
@@ -24,6 +38,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Disable WorkManager's default initializer so the app supplies its own Configuration
+          via HomeInventoryApp (Configuration.Provider) with Hilt's WorkerFactory. Required for
+          @HiltWorker injection.
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>
